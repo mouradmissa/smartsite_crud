@@ -1,0 +1,145 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import Link from "next/link";
+import useSWR, { mutate } from "swr";
+import MainLayout from "@/components/MainLayout";
+import PageHeader from "@/components/PageHeader";
+import JobsTable from "@/components/JobsTable";
+import DeleteJobDialog from "@/components/DeleteJobDialog";
+import type { Job, Resource } from "@/lib/types";
+import { Plus, Search, Filter } from "lucide-react";
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+const statusOptions = ["All", "Planning", "In Progress", "Completed", "On Hold"];
+
+export default function JobsPage() {
+  const { data: jobs = [], isLoading: jobsLoading } = useSWR<Job[]>("/api/jobs", fetcher);
+  const { data: resources = [] } = useSWR<Resource[]>("/api/resources", fetcher);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [deleteTarget, setDeleteTarget] = useState<Job | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const filteredJobs = useMemo(() => {
+    let filtered = jobs;
+
+    if (statusFilter !== "All") {
+      filtered = filtered.filter((job) => job.status === statusFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (job) =>
+          job.title.toLowerCase().includes(q) ||
+          job.taskName.toLowerCase().includes(q) ||
+          job.description.toLowerCase().includes(q)
+      );
+    }
+
+    return filtered;
+  }, [jobs, statusFilter, searchQuery]);
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await fetch(`/api/jobs/${deleteTarget.id}`, { method: "DELETE" });
+      mutate("/api/jobs");
+    } finally {
+      setIsDeleting(false);
+      setDeleteTarget(null);
+    }
+  }
+
+  return (
+    <MainLayout>
+      <PageHeader title="Jobs" description="Manage all jobs linked to project tasks">
+        <Link
+          href="/jobs/create"
+          className="px-4 py-2 rounded-lg bg-accent text-accent-foreground font-semibold hover:bg-accent/90 transition-colors flex items-center gap-2 shadow-sm"
+        >
+          <Plus size={18} />
+          Create Job
+        </Link>
+      </PageHeader>
+
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col md:flex-row items-start md:items-center gap-4 mb-6">
+        {/* Search */}
+        <div className="relative flex-1 w-full md:max-w-sm">
+          <Search
+            size={18}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          />
+          <input
+            type="text"
+            placeholder="Search jobs..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-border bg-input text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-shadow"
+          />
+        </div>
+
+        {/* Status Filter */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Filter size={18} className="text-muted-foreground" />
+          {statusOptions.map((status) => (
+            <button
+              key={status}
+              onClick={() => setStatusFilter(status)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
+                statusFilter === status
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-secondary text-foreground hover:bg-muted"
+              }`}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Jobs Count */}
+      <div className="mb-4">
+        <p className="text-sm text-muted-foreground">
+          Showing{" "}
+          <span className="font-semibold text-foreground">
+            {filteredJobs.length}
+          </span>{" "}
+          of{" "}
+          <span className="font-semibold text-foreground">{jobs.length}</span>{" "}
+          jobs
+        </p>
+      </div>
+
+      {/* Table */}
+      {jobsLoading ? (
+        <div className="bg-card rounded-xl border border-border shadow-sm p-12 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="text-muted-foreground">Loading jobs...</p>
+          </div>
+        </div>
+      ) : (
+        <JobsTable
+          jobs={filteredJobs}
+          resources={resources}
+          onDelete={(job) => setDeleteTarget(job)}
+        />
+      )}
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteJobDialog
+        open={!!deleteTarget}
+        jobTitle={deleteTarget?.title ?? ""}
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+        isDeleting={isDeleting}
+      />
+    </MainLayout>
+  );
+}
