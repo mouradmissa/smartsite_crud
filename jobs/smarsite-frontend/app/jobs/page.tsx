@@ -7,16 +7,18 @@ import MainLayout from "@/components/MainLayout";
 import PageHeader from "@/components/PageHeader";
 import JobsTable from "@/components/JobsTable";
 import DeleteJobDialog from "@/components/DeleteJobDialog";
-import type { Job, Resource } from "@/lib/types";
+import type { Job } from "@/lib/types";
+import { fetcher, getJobsKey, deleteJob } from "@/lib/api";
 import { Plus, Search, Filter } from "lucide-react";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
-
-const statusOptions = ["All", "Planning", "In Progress", "Completed", "On Hold"];
+const statusOptions = ["All", "Planifié", "En cours", "Terminé"];
 
 export default function JobsPage() {
-  const { data: jobs = [], isLoading: jobsLoading } = useSWR<Job[]>("/api/jobs", fetcher);
-  const { data: resources = [] } = useSWR<Resource[]>("/api/resources", fetcher);
+  const {
+    data: jobs = [],
+    isLoading: jobsLoading,
+    error,
+  } = useSWR<Job[]>(getJobsKey(), fetcher);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -35,8 +37,7 @@ export default function JobsPage() {
       filtered = filtered.filter(
         (job) =>
           job.title.toLowerCase().includes(q) ||
-          job.taskName.toLowerCase().includes(q) ||
-          job.description.toLowerCase().includes(q)
+          job.description?.toLowerCase().includes(q)
       );
     }
 
@@ -47,8 +48,10 @@ export default function JobsPage() {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      await fetch(`/api/jobs/${deleteTarget.id}`, { method: "DELETE" });
-      mutate("/api/jobs");
+      await deleteJob(deleteTarget._id);
+      mutate(getJobsKey());
+    } catch (err) {
+      console.error("Failed to delete job:", err);
     } finally {
       setIsDeleting(false);
       setDeleteTarget(null);
@@ -116,6 +119,18 @@ export default function JobsPage() {
         </p>
       </div>
 
+      {/* Error State */}
+      {error && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-6 mb-6">
+          <p className="text-destructive font-medium">
+            Failed to load jobs. Make sure the backend is running on port 3200.
+          </p>
+          <p className="text-sm text-destructive/80 mt-1">
+            {error instanceof Error ? error.message : "Unknown error"}
+          </p>
+        </div>
+      )}
+
       {/* Table */}
       {jobsLoading ? (
         <div className="bg-card rounded-xl border border-border shadow-sm p-12 flex items-center justify-center">
@@ -127,7 +142,6 @@ export default function JobsPage() {
       ) : (
         <JobsTable
           jobs={filteredJobs}
-          resources={resources}
           onDelete={(job) => setDeleteTarget(job)}
         />
       )}

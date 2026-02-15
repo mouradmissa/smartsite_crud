@@ -6,8 +6,7 @@ import MainLayout from "@/components/MainLayout";
 import PageHeader from "@/components/PageHeader";
 import JobForm from "@/components/JobForm";
 import type { Job } from "@/lib/types";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { fetcher, getJobKey } from "@/lib/api";
 
 export default function EditJobPage({
   params,
@@ -15,7 +14,7 @@ export default function EditJobPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { data: job, isLoading, error } = useSWR<Job>(`/api/jobs/${id}`, fetcher);
+  const { data: job, isLoading, error } = useSWR<Job>(getJobKey(id), fetcher);
 
   return (
     <MainLayout>

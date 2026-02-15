@@ -1,39 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import type { Job, Resource } from "@/lib/types";
-import { Pencil, Trash2, Briefcase, Calendar, Users, Wrench } from "lucide-react";
+import type { Job } from "@/lib/types";
+import { Pencil, Trash2, Briefcase, Calendar, Users } from "lucide-react";
 
 interface JobsTableProps {
   jobs: Job[];
-  resources: Resource[];
   onDelete: (job: Job) => void;
 }
 
 function getStatusBadge(status: string) {
   switch (status) {
-    case "Completed":
+    case "Terminé":
       return "bg-green-100 text-green-800";
-    case "In Progress":
+    case "En cours":
       return "bg-blue-100 text-blue-800";
-    case "Planning":
+    case "Planifié":
       return "bg-yellow-100 text-yellow-800";
-    case "On Hold":
-      return "bg-muted text-muted-foreground";
     default:
       return "bg-muted text-muted-foreground";
   }
 }
 
-function getResourceNames(ids: number[], resources: Resource[]) {
-  if (!ids || ids.length === 0) return "None";
-  return ids
-    .map((id) => resources.find((r) => r.id === id)?.name)
-    .filter(Boolean)
-    .join(", ");
+function formatResourceList(resources: Job["assignedResources"], type: string) {
+  const filtered = resources?.filter((r) => r.type === type) ?? [];
+  if (filtered.length === 0) return "None";
+  return `${filtered.length} assigned`;
 }
 
-export default function JobsTable({ jobs, resources, onDelete }: JobsTableProps) {
+export default function JobsTable({ jobs, onDelete }: JobsTableProps) {
   return (
     <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
       <div className="overflow-x-auto">
@@ -44,22 +39,16 @@ export default function JobsTable({ jobs, resources, onDelete }: JobsTableProps)
                 Job Title
               </th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                Task
+                Start Time
               </th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                Start Date
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                End Date
+                End Time
               </th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
                 Status
               </th>
               <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                Assigned Humans
-              </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-foreground">
-                Assigned Equipment
+                Resources
               </th>
               <th className="px-6 py-4 text-right text-sm font-semibold text-foreground">
                 Actions
@@ -70,7 +59,7 @@ export default function JobsTable({ jobs, resources, onDelete }: JobsTableProps)
             {jobs.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
+                  colSpan={6}
                   className="px-6 py-12 text-center text-muted-foreground"
                 >
                   <div className="flex flex-col items-center gap-2">
@@ -85,30 +74,34 @@ export default function JobsTable({ jobs, resources, onDelete }: JobsTableProps)
             ) : (
               jobs.map((job) => (
                 <tr
-                  key={job.id}
+                  key={job._id}
                   className="border-b border-border hover:bg-secondary/30 transition-colors"
                 >
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2">
                       <Briefcase size={16} className="text-accent flex-shrink-0" />
-                      <span className="font-semibold text-foreground">
-                        {job.title}
-                      </span>
+                      <div>
+                        <span className="font-semibold text-foreground">
+                          {job.title}
+                        </span>
+                        {job.description && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                            {job.description}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-foreground">
-                    {job.taskName}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1.5 text-sm text-foreground">
                       <Calendar size={14} className="text-primary flex-shrink-0" />
-                      {new Date(job.startDate).toLocaleDateString()}
+                      {new Date(job.startTime).toLocaleDateString()}
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-1.5 text-sm text-foreground">
                       <Calendar size={14} className="text-primary flex-shrink-0" />
-                      {new Date(job.endDate).toLocaleDateString()}
+                      {new Date(job.endTime).toLocaleDateString()}
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -119,25 +112,17 @@ export default function JobsTable({ jobs, resources, onDelete }: JobsTableProps)
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-1.5 text-sm text-foreground max-w-[200px]">
-                      <Users size={14} className="text-primary flex-shrink-0" />
-                      <span className="truncate">
-                        {getResourceNames(job.assignedHumans, resources)}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-1.5 text-sm text-foreground max-w-[200px]">
-                      <Wrench size={14} className="text-accent flex-shrink-0" />
-                      <span className="truncate">
-                        {getResourceNames(job.assignedEquipment, resources)}
-                      </span>
+                    <div className="flex flex-col gap-1 text-sm text-foreground">
+                      <div className="flex items-center gap-1.5">
+                        <Users size={14} className="text-primary flex-shrink-0" />
+                        <span>{formatResourceList(job.assignedResources, "Human")}</span>
+                      </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-2">
                       <Link
-                        href={`/jobs/${job.id}/edit`}
+                        href={`/jobs/${job._id}/edit`}
                         className="p-2 rounded-lg hover:bg-primary/10 text-primary transition-colors"
                         aria-label={`Edit ${job.title}`}
                       >
